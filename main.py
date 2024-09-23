@@ -8,6 +8,8 @@ BOT_USERNAME: Final = '@iSplitMoneyBot'
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await update.message.reply_text('Hello! Thanks for chatting with me!')
 
+
+
 if __name__ == '__main__':
   app = Application.builder().token(TOKEN).build()
 
