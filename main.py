@@ -1,43 +1,58 @@
+import logging
 from typing import Final
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TOKEN: Final = '7324851083:AAEOWTNYBsFG2ZrVNEakCuXG-xRDwaQH6Wg'
 BOT_USERNAME: Final = '@iSplitMoneyBot'
 
-# Command handler for /start or /test command
+# Define states for conversation
+ASK_NAMES = 1
+
+# Start command handler
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('Hello! Thanks for chatting with me!')
+    logger.info(f"Received update: {update}")  # Log update data
+    await update.message.reply_text('Hello! Please enter participant names separated by a hyphen (-).')
+    return ASK_NAMES  # Move to the state where bot expects user to input names
 
-# Generic handler for unrecognized input
-async def handle_unrecognized_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Sorry, I didn't recognize that command. Please try again or type /help for available commands.")
-
-# Error handler (logs and replies to the user in case of errors)
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Log the error
-    print(f"Error: {context.error}")
-
-    # Check if the update has a message or callback query
-    if update and update.message:
-        await update.message.reply_text('An error occurred. Please try again later.')
-    elif update and update.callback_query:
-        await update.callback_query.answer('An error occurred. Please try again later.')
+# Handler to capture user's names
+async def input_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    names = update.message.text.split('-')  # Split the names by '-'
+    names = [name.strip() for name in names]  # Remove any extra whitespace around each name
+    logger.info(f"Received names: {names}")
+    
+    if len(names) > 1:
+        name_list = "\n".join(names)  # Format the names nicely for display
+        await update.message.reply_text(f'Nice to meet all of you:\n{name_list}')
     else:
-        print("Update type not handled by error handler")
+        await update.message.reply_text(f'Nice to meet you, {names[0]}!')
+    
+    return ConversationHandler.END  # End the conversation after receiving the names
+
+# Fallback handler if user cancels the process
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text('Conversation canceled.')
+    return ConversationHandler.END
 
 if __name__ == '__main__':
-    # Create the application instance
+    # Create the application
     app = Application.builder().token(TOKEN).build()
 
-    # Command handlers
-    app.add_handler(CommandHandler('test', start_command))
-    
-    # Generic handler for all unrecognized messages or commands
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_unrecognized_input))
+    # Define conversation handler with states
+    conversation_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start_command)],  # Start with /start command
+        states={
+            ASK_NAMES: [MessageHandler(filters.TEXT & ~filters.COMMAND, input_user)],  # Expect multiple names as text
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],  # Allow canceling the conversation
+    )
 
-    # Error handler to catch any issues
-    app.add_error_handler(error_handler)
+    # Add conversation handler to the app
+    app.add_handler(conversation_handler)
 
     # Start the bot
-    app.run_polling(poll_interval=1)
+    app.run_polling()
