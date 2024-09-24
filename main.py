@@ -20,7 +20,7 @@ menu_data = []
 # Start command handler
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received update: {update}")  # Log update data
-    await update.message.reply_text('Hello! Please enter names separated by a hyphen (-).')
+    await update.message.reply_text('Hello! Please enter names separated by space.')
     return ASK_NAMES  # Move to the state where bot expects user to input names
 
 # Handler to capture user's names
@@ -28,7 +28,7 @@ async def input_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Entered input_user handler")  # Log to ensure this handler is reached
     
     global users
-    users = update.message.text.split('-')  # Split the names by '-'
+    users = update.message.text.split(' ')  # Split the names by '-'
     users = [name.strip() for name in users]  # Remove any extra whitespace around each name
     num = len(users)
     logger.info(f"Received names: {users}, Number of people: {num}")
@@ -88,16 +88,63 @@ async def ask_payer(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # End the conversation when the user is done adding items
 async def end_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Display all the items and who is paying
-    summary = '\n'.join([f'{item["item"]} - {item["price"]} (Payer: {item["payer"]})' for item in menu_data])
-    await update.message.reply_text(f'Here\'s the final summary:\n{summary}')
+    payer_totals = {}
+
+    # Loop through each item in the menu_data
+    for item in menu_data:
+        payer = item["payer"]
+        price = item["price"]
+
+        if payer == "all":
+            # Split the price among all users
+            split_price = price / len(users)
+            for user in users:
+                if user in payer_totals:
+                    payer_totals[user] += split_price
+                else:
+                    payer_totals[user] = split_price
+        else:
+            # Add the price to the corresponding payer's total
+            if payer in payer_totals:
+                payer_totals[payer] += price
+            else:
+                payer_totals[payer] = price
+
+    # Create the summary for each item
+    item_summary = '\n'.join([f'{item["item"]} - {item["price"]} (Payer: {item["payer"]})' for item in menu_data])
+
+    # Create the summary of how much each payer owes
+    total_summary = '\n'.join([f'{payer} owes: {total:.2f}' for payer, total in payer_totals.items()])
+
+    # Send the final summary to the user
+    await update.message.reply_text(
+        f"Here's the final summary:\n{item_summary}\n\nTotal per payer:\n{total_summary}"
+    )
+
     return ConversationHandler.END  # End the conversation
+
 
 # Fallback handler for cancellation
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Conversation canceled.")
     await update.message.reply_text('Conversation canceled.')
     return ConversationHandler.END  # End the conversation
+
+async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Log the help command usage
+    logger.info("/help command was called")
+
+    # Prepare help message to send to the user
+    help_message = (
+        "/cancel - Cancel the current calculation\n"
+        "/done - Finish and get the summary of the calculation\n"
+        "/help - Ask for command list"
+    )
+    
+    # Send help message to the user
+    await update.message.reply_text(help_message)
+
+    return ConversationHandler.END
 
 if __name__ == '__main__':
     # Create the application
@@ -112,8 +159,14 @@ if __name__ == '__main__':
             ASK_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_price)],  # Expect price
             ASK_PAYER: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_payer)]  # Expect payer
         },
-        fallbacks=[CommandHandler('cancel', cancel), CommandHandler('done', end_conversation)]  # Allow canceling or finishing
+        fallbacks=[CommandHandler('cancel', cancel), 
+                   CommandHandler('done', end_conversation),
+                   
+                   ]  # Allow canceling or finishing
     )
+
+    # Add the /help command handler
+    app.add_handler(CommandHandler('help', help))
 
     # Add conversation handler to the app
     app.add_handler(conversation_handler)
