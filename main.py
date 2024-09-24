@@ -28,7 +28,7 @@ async def input_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("Entered input_user handler")  # Log to ensure this handler is reached
     
     global users
-    users = update.message.text.split(' ')  # Split the names by '-'
+    users = update.message.text.split('-')  # Split the names by '-'
     users = [name.strip() for name in users]  # Remove any extra whitespace around each name
     num = len(users)
     logger.info(f"Received names: {users}, Number of people: {num}")
