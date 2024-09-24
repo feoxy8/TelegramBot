@@ -20,7 +20,7 @@ menu_data = []
 # Start command handler
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Received update: {update}")  # Log update data
-    await update.message.reply_text('Hello! Please enter names separated by space.')
+    await update.message.reply_text('Hello! Please enter names separated by hypen(-).')
     return ASK_NAMES  # Move to the state where bot expects user to input names
 
 # Handler to capture user's names
